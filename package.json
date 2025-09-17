@@ -1,91 +1,28 @@
 {
-  "name": "security-scan-chat",
-  "displayName": "Security Scan Chat",
-  "description": "Chat interface with security linting and code review capabilities",
-  "version": "0.1.0",
-  "publisher": "asfalis",
-  "engines": {
-    "vscode": "^1.60.0"
-  },
-  "categories": [
-    "Linters",
-    "Other"
-  ],
-  "activationEvents": [
-    "onView:securityIssues",
-    "onView:securityChat",
-    "onView:securityIssueDetails",
-    "onCommand:security-scan-chat.openChat",
-    "onCommand:security-scan-chat.scanFile",
-    "onCommand:security-scan-chat.scanProject"
-  ],
-  "main": "./dist/extension.js",
-  "contributes": {
-    "commands": [
-      {
-        "command": "security-scan-chat.openChat",
-        "title": "Security Scan: Open Chat"
-      },
-      {
-        "command": "security-scan-chat.scanFile",
-        "title": "Security Scan: Scan Current File"
-      },
-      {
-        "command": "security-scan-chat.scanProject",
-        "title": "Security Scan: Scan Project"
-      }
-    ],
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "security-scan-sidebar",
-          "title": "Security Scan",
-          "icon": "media/security-icon.svg"
-        }
-      ]
-    },
-    "views": {
-      "security-scan-sidebar": [
-        {
-          "id": "securityIssues",
-          "name": "Security Issues",
-          "type": "tree"
-        },
-        {
-          "id": "securityChat",
-          "name": "Security Chat",
-          "type": "webview"
-        },
-        {
-          "id": "securityIssueDetails",
-          "name": "Issue Details",
-          "type": "webview"
-        }
-      ]
-    }
-  },
+  "name": "asfalis-security-scanner",
+  "version": "1.0.0",
+  "description": "Web-based GitHub security scanner with OAuth integration",
+  "main": "server/index.js",
   "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "lint": "eslint src --ext ts",
-    "package": "webpack --mode production --devtool hidden-source-map && mkdir -p dist/media && cp -r media/* dist/media/",
-    "test": "node ./out/test/runTest.js"
+    "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
+    "server:dev": "cd server && npm run dev",
+    "client:dev": "cd client && npm start",
+    "build": "cd client && npm run build",
+    "start": "cd server && npm start",
+    "install:all": "npm install && cd server && npm install && cd ../client && npm install",
+    "test": "cd server && npm test && cd ../client && npm test"
   },
+  "keywords": [
+    "security",
+    "github",
+    "scanner",
+    "oauth",
+    "vulnerability",
+    "sast"
+  ],
+  "author": "Asfalis Security",
+  "license": "MIT",
   "devDependencies": {
-    "@types/glob": "^8.1.0",
-    "@types/mocha": "^10.0.6",
-    "@types/node": "20.11.x",
-    "@types/vscode": "^1.60.0",
-    "@typescript-eslint/eslint-plugin": "^6.15.0",
-    "@typescript-eslint/parser": "^6.15.0",
-    "eslint": "^8.56.0",
-    "glob": "^10.3.10",
-    "mocha": "^10.2.0",
-    "typescript": "^5.3.3",
-    "webpack": "^5.89.0",
-    "webpack-cli": "^5.1.4",
-    "ts-loader": "^9.5.1"
-  },
-  "dependencies": {}
-} 
+    "concurrently": "^8.2.2"
+  }
+}
