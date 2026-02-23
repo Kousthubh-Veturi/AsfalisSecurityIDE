@@ -1,75 +1,8 @@
-# Dependencies
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Production builds
-build/
-dist/
-out/
-
-# Environment variables
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS generated files
+backend/venv
+backend/.env
+docs/
+frontend/node_modules
+__pycache__
+frontend/env.local
+frontend/.next/
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Logs
-logs
-*.log
-
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Coverage directory used by tools like istanbul
-coverage/
-.nyc_output
-
-# Temporary directories
-temp/
-tmp/
-.tmp/
-
-# Database
-*.sqlite
-*.sqlite3
-
-# Security scanning temp files
-server/temp/
-
-# Package manager locks (keep in some projects, ignore in others)
-package-lock.json
-yarn.lock
-
-# MongoDB dumps
-dump/
-
-# Jest coverage
-coverage/
-
-# ESLint cache
-.eslintcache
-
-# Optional REPL history
-.node_repl_history
