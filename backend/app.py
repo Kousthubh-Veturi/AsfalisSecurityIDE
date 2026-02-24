@@ -8,8 +8,9 @@ load_dotenv()
 
 app = Flask(__name__)
 
-frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
-CORS(app, origins=[frontend_url])
+cors_origins = os.environ.get("CORS_ORIGINS", "http://localhost:3000")
+origins = [o.strip() for o in cors_origins.split(",") if o.strip()]
+CORS(app, origins=origins)
 
 @app.route("/")
 def index():

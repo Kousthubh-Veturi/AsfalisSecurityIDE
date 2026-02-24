@@ -1,18 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+import { API_BASE } from "../lib/api";
 
 export function ApiHealth() {
   const [status, setStatus] = useState<"loading" | "up" | "down">("loading");
 
   useEffect(() => {
-    if (!apiBase) {
+    if (!API_BASE) {
       setStatus("down");
       return;
     }
-    fetch(`${apiBase}/health`, { method: "GET" })
+    fetch(`${API_BASE}/health`, { method: "GET" })
       .then((res) => (res.ok ? setStatus("up") : setStatus("down")))
       .catch(() => setStatus("down"));
   }, []);
