@@ -1,8 +1,12 @@
 backend/venv
+backend/.venv
 backend/.env
+backend/.keys/
+*.pem
 docs/
 frontend/node_modules
 __pycache__
 frontend/env.local
 frontend/.next/
 .DS_Store
+backend/asfalis-security-scanner.2026-02-23.private-key.pem
