@@ -1,62 +1,4 @@
 from datetime import datetime
-from typing import Optional
-
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from db import Base
-
-
-class Installation(Base):
-    __tablename__ = "installations"
-
-    # GitHub installation id (unique per installation)
-    installation_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-
-    account_login: Mapped[str] = mapped_column(String(255))
-    account_type: Mapped[str] = mapped_column(String(64))
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow
-    )
-    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    last_seen_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow
-    )
-
-    repos: Mapped[list["Repo"]] = relationship(
-        back_populates="installation", cascade="all, delete-orphan"
-    )
-
-
-class Repo(Base):
-    __tablename__ = "repos"
-
-    # GitHub repository id
-    repo_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-
-    installation_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("installations.installation_id"), index=True
-    )
-
-    owner: Mapped[str] = mapped_column(String(255))
-    name: Mapped[str] = mapped_column(String(255))
-    full_name: Mapped[str] = mapped_column(String(512))
-    default_branch: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-
-    is_private: Mapped[bool] = mapped_column(Boolean, default=True)
-    archived: Mapped[bool] = mapped_column(Boolean, default=False)
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow
-    )
-    last_synced_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime, nullable=True
-    )
-
-    installation: Mapped[Installation] = relationship(back_populates="repos")
-
-from datetime import datetime
 
 from sqlalchemy import (
     BigInteger,
@@ -106,4 +48,3 @@ class Repo(Base):
     last_synced_at = Column(DateTime, nullable=True)
 
     installation = relationship("Installation", back_populates="repos")
-
