@@ -22,7 +22,10 @@ origins = [o.strip() for o in cors_origins.split(",") if o.strip()]
 CORS(app, origins=origins)
 
 if engine is not None:
-    Base.metadata.create_all(bind=engine)
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception:
+        pass  # DB unreachable at boot (e.g. wrong DATABASE_URL); /health still works
 
 
 @app.route("/")
