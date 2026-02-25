@@ -90,6 +90,42 @@ def github_webhook():
                 existing.account_type = account.get("type") or existing.account_type
                 existing.last_seen_at = now
 
+            # Sync repos from installation payload (initial install)
+            for r in data.get("repositories") or []:
+                repo_id = r.get("id")
+                if not repo_id:
+                    continue
+                owner_login = (r.get("owner") or {}).get("login") or ""
+                name = r.get("name") or ""
+                full_name = r.get("full_name") or f"{owner_login}/{name}"
+                default_branch = r.get("default_branch")
+                is_private = bool(r.get("private"))
+                archived = bool(r.get("archived"))
+                existing_repo = session.query(Repo).filter_by(repo_id=repo_id).one_or_none()
+                if existing_repo is None:
+                    repo = Repo(
+                        repo_id=repo_id,
+                        installation_id=installation_id,
+                        owner=owner_login,
+                        name=name,
+                        full_name=full_name,
+                        default_branch=default_branch,
+                        is_private=is_private,
+                        created_at=now,
+                        archived=archived,
+                        last_synced_at=now,
+                    )
+                    session.add(repo)
+                else:
+                    existing_repo.installation_id = installation_id
+                    existing_repo.owner = owner_login
+                    existing_repo.name = name
+                    existing_repo.full_name = full_name
+                    existing_repo.default_branch = default_branch
+                    existing_repo.is_private = is_private
+                    existing_repo.archived = archived
+                    existing_repo.last_synced_at = now
+
         return {"ok": True}, 200
 
     if event == "installation_repositories":
@@ -234,6 +270,38 @@ def debug_installation(installation_id: int):
         "first_repo_full_name": first.get("full_name") if first else None,
         "first_repo_owner": (first.get("owner") or {}).get("login") if first else None,
     }, 200
+
+
+@app.route("/api/repos")
+def list_repos():
+    """Return repos for the given installation_id only (scoped; no all-repos)."""
+    installation_id = request.args.get("installation_id", type=int)
+    if installation_id is None:
+        return {"error": "installation_id required"}, 400
+    try:
+        with get_session() as session:
+            repos = (
+                session.query(Repo)
+                .filter_by(installation_id=installation_id)
+                .filter(Repo.archived == False)  # noqa: E712
+                .order_by(Repo.full_name)
+                .all()
+            )
+            return {
+                "installation_id": installation_id,
+                "repos": [
+                    {
+                        "repo_id": r.repo_id,
+                        "full_name": r.full_name,
+                        "default_branch": r.default_branch,
+                        "is_private": r.is_private,
+                        "archived": r.archived,
+                    }
+                    for r in repos
+                ],
+            }, 200
+    except RuntimeError:
+        return {"error": "database unavailable"}, 503
 
 
 if __name__ == "__main__":
