@@ -51,16 +51,17 @@ def _run_scan_job(scan_id: str) -> None:
                 run.error_message = "repo not found"
                 run.ended_at = datetime.utcnow()
                 return
+            installation_id = run.installation_id
+            branch = run.branch or repo.default_branch or "main"
+            owner = repo.owner
+            name = repo.name
 
         started = time.time()
-        token = get_installation_token(run.installation_id)
+        token = get_installation_token(installation_id)
         if time.time() - started > JOB_TIMEOUT_SECONDS:
             raise RuntimeError("Job timeout before download")
 
-        owner = repo.owner
-        name = repo.name
-        ref = run.branch or repo.default_branch or "main"
-        archive_bytes = _download_repo_archive(owner, name, ref, token)
+        archive_bytes = _download_repo_archive(owner, name, branch, token)
         if time.time() - started > JOB_TIMEOUT_SECONDS:
             raise RuntimeError("Job timeout after download")
 
