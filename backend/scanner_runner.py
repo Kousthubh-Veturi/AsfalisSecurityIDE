@@ -44,10 +44,10 @@ def run_osv(work_dir: str, timeout: int = 120) -> tuple[bool, str, Optional[str]
 
 
 def run_semgrep(work_dir: str, timeout: int = 300) -> tuple[bool, str, Optional[str]]:
-    """Run Semgrep; output semgrep.sarif in work_dir. Returns (ok, message, path)."""
+    """Run Semgrep with verbose output; output semgrep.sarif in work_dir. Returns (ok, message, path)."""
     out_path = os.path.join(work_dir, "semgrep.sarif")
     ok, out = _run(
-        ["semgrep", "scan", "--sarif", "--sarif-output", out_path, "--config", "auto", "."],
+        ["semgrep", "scan", "--verbose", "--sarif", "--sarif-output", out_path, "--config", "auto", "."],
         cwd=work_dir,
         timeout=timeout,
     )

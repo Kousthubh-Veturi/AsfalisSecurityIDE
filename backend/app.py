@@ -44,6 +44,19 @@ if engine is not None:
                     print("Added scan_runs.current_stage column", flush=True)
         except Exception as e:
             print(f"Migration (current_stage) skipped or failed: {e}", flush=True)
+        try:
+            from sqlalchemy import text
+            with engine.connect() as conn:
+                r = conn.execute(text(
+                    "SELECT 1 FROM information_schema.columns "
+                    "WHERE table_schema = 'public' AND table_name = 'scan_stages' AND column_name = 'output'"
+                ))
+                if r.scalar() is None:
+                    conn.execute(text("ALTER TABLE scan_stages ADD COLUMN output TEXT"))
+                    conn.commit()
+                    print("Added scan_stages.output column", flush=True)
+        except Exception as e:
+            print(f"Migration (scan_stages.output) skipped or failed: {e}", flush=True)
 
 
 @app.route("/")
@@ -512,6 +525,7 @@ def get_scan_stages(scan_run_id: str):
                         "started_at": s.started_at.isoformat() if s.started_at else None,
                         "ended_at": s.ended_at.isoformat() if s.ended_at else None,
                         "error_message": s.error_message,
+                        "output": s.output,
                     }
                     for s in stages
                 ],

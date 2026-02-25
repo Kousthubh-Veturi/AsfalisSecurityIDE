@@ -39,7 +39,9 @@ def _download_repo_archive(owner: str, name: str, ref: str, token: str) -> bytes
     return b"".join(chunks)
 
 
-def _record_stage(scan_id: str, stage: str, started_at: datetime, ended_at: datetime | None = None, error_message: str | None = None) -> None:
+MAX_STAGE_OUTPUT_LEN = 200_000
+
+def _record_stage(scan_id: str, stage: str, started_at: datetime, ended_at: datetime | None = None, error_message: str | None = None, output: str | None = None) -> None:
     with get_session() as session:
         run = session.query(ScanRun).filter_by(id=scan_id).one_or_none()
         if run:
@@ -49,6 +51,8 @@ def _record_stage(scan_id: str, stage: str, started_at: datetime, ended_at: date
             if rec:
                 rec.ended_at = ended_at
                 rec.error_message = error_message
+                if output is not None:
+                    rec.output = output[:MAX_STAGE_OUTPUT_LEN] if len(output) > MAX_STAGE_OUTPUT_LEN else output
         else:
             session.add(ScanStage(scan_run_id=scan_id, stage=stage, started_at=started_at, ended_at=None, error_message=None))
 
@@ -93,7 +97,7 @@ def _run_scan_job(scan_id: str) -> None:
             tf.extractall(tmpdir)
         subdirs = [d for d in os.listdir(tmpdir) if os.path.isdir(os.path.join(tmpdir, d)) and not d.startswith(".")]
         work_dir = os.path.join(tmpdir, subdirs[0]) if len(subdirs) == 1 else tmpdir
-        _record_stage(scan_id, "fetch_repo", stage_start, datetime.utcnow())
+        _record_stage(scan_id, "fetch_repo", stage_start, datetime.utcnow(), output="Repo archive downloaded and extracted.")
 
         osv_ok, osv_msg, osv_path = False, "", None
         semgrep_ok, semgrep_msg, semgrep_path = False, "", None
@@ -120,20 +124,20 @@ def _run_scan_job(scan_id: str) -> None:
                 except Exception:
                     pass
         timeout_check()
-        _record_stage(scan_id, "sca_osv", stage_start, datetime.utcnow(), None if osv_ok else osv_msg)
-        _record_stage(scan_id, "sast_semgrep", stage_start, datetime.utcnow(), None if semgrep_ok else semgrep_msg)
+        _record_stage(scan_id, "sca_osv", stage_start, datetime.utcnow(), None if osv_ok else osv_msg, output=osv_msg or None)
+        _record_stage(scan_id, "sast_semgrep", stage_start, datetime.utcnow(), None if semgrep_ok else semgrep_msg, output=semgrep_msg or None)
 
         stage_start = datetime.utcnow()
         _record_stage(scan_id, "semantic_codeql", stage_start)
         codeql_ok, codeql_msg, codeql_path = run_codeql(work_dir, timeout=600)
-        _record_stage(scan_id, "semantic_codeql", stage_start, datetime.utcnow(), None if codeql_ok else codeql_msg)
+        _record_stage(scan_id, "semantic_codeql", stage_start, datetime.utcnow(), None if codeql_ok else codeql_msg, output=codeql_msg or None)
         timeout_check()
 
         project_key = f"asfalis-{scan_id}"[:64]
         stage_start = datetime.utcnow()
         _record_stage(scan_id, "sonarqube_publish", stage_start)
         sonar_ok, sonar_msg, _ = run_sonar(work_dir, project_key, timeout=300)
-        _record_stage(scan_id, "sonarqube_publish", stage_start, datetime.utcnow(), None if sonar_ok else sonar_msg)
+        _record_stage(scan_id, "sonarqube_publish", stage_start, datetime.utcnow(), None if sonar_ok else sonar_msg, output=sonar_msg or None)
 
         stage_start = datetime.utcnow()
         _record_stage(scan_id, "normalize", stage_start)
@@ -176,17 +180,19 @@ def _run_scan_job(scan_id: str) -> None:
                 with open(merged_path, "r") as f:
                     content = f.read()
                 session.add(ScanArtifact(scan_run_id=scan_id, name="merged.sarif", content_type="application/sarif+json", content=content))
-        _record_stage(scan_id, "normalize", stage_start, datetime.utcnow())
+        norm_msg = f"Normalized {len(all_findings)} findings from {len(sarif_paths)} SARIF(s)."
+        _record_stage(scan_id, "normalize", stage_start, datetime.utcnow(), output=norm_msg)
 
         stage_start = datetime.utcnow()
         _record_stage(scan_id, "finalize", stage_start)
+        result_summary = f"Scans completed. Normalized findings: {len(all_findings)}. OSV: {'ok' if osv_ok else 'skip'}, Semgrep: {'ok' if semgrep_ok else 'skip'}, CodeQL: {'ok' if codeql_ok else 'skip'}."
         with get_session() as session:
             run = session.query(ScanRun).filter_by(id=scan_id).one()
             run.status = "completed"
             run.ended_at = datetime.utcnow()
             run.current_stage = "finalize"
-            run.result_summary = f"Scans completed. Normalized findings: {len(all_findings)}. OSV: {'ok' if osv_ok else 'skip'}, Semgrep: {'ok' if semgrep_ok else 'skip'}, CodeQL: {'ok' if codeql_ok else 'skip'}."
-        _record_stage(scan_id, "finalize", stage_start, datetime.utcnow())
+            run.result_summary = result_summary
+        _record_stage(scan_id, "finalize", stage_start, datetime.utcnow(), output=result_summary)
     except Exception as e:
         err_msg = str(e)
         try:

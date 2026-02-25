@@ -38,7 +38,16 @@ type FindingRow = {
 
 type ArtifactRow = { name: string; content_type: string };
 
+type StageRow = {
+  stage: string;
+  started_at: string | null;
+  ended_at: string | null;
+  error_message: string | null;
+  output: string | null;
+};
+
 const POLL_MS = 3000;
+const STAGES_POLL_MS = 30000;
 const TABS = ["Normalized", "OSV", "Semgrep", "CodeQL", "SARIF"] as const;
 
 export default function ScanResultsPage() {
@@ -47,6 +56,7 @@ export default function ScanResultsPage() {
   const [scan, setScan] = useState<ScanDetail | null>(null);
   const [findings, setFindings] = useState<FindingRow[]>([]);
   const [artifacts, setArtifacts] = useState<ArtifactRow[]>([]);
+  const [stages, setStages] = useState<StageRow[]>([]);
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>("Normalized");
   const [error, setError] = useState<string | null>(null);
 
@@ -93,6 +103,19 @@ export default function ScanResultsPage() {
     }
   }, [id]);
 
+  const fetchStages = useCallback(async () => {
+    if (!API_BASE || !id) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/scans/${id}/stages`);
+      if (res.ok) {
+        const data = await res.json();
+        setStages(data.stages || []);
+      }
+    } catch {
+      // ignore
+    }
+  }, [id]);
+
   useEffect(() => {
     if (!id) return;
     fetchScan();
@@ -106,6 +129,13 @@ export default function ScanResultsPage() {
       fetchArtifacts();
     }
   }, [id, scan?.status, fetchFindings, fetchArtifacts]);
+
+  useEffect(() => {
+    if (!id || !scan) return;
+    fetchStages();
+    const interval = setInterval(fetchStages, STAGES_POLL_MS);
+    return () => clearInterval(interval);
+  }, [id, scan, fetchStages]);
 
   if (!id) {
     return (
@@ -174,6 +204,45 @@ export default function ScanResultsPage() {
       {status === "failed" && scan?.error_message && (
         <p className="mt-3 text-red-600 dark:text-red-400">{scan.error_message}</p>
       )}
+
+      {stages.length > 0 && (
+        <div className="mt-6">
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Stage output</h2>
+          <p className="mt-1 text-sm text-zinc-500">Refreshed every 30 seconds.</p>
+          <div className="mt-3 space-y-4">
+            {stages.map((s) => (
+              <div
+                key={s.stage}
+                className="rounded border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/50"
+              >
+                <div className="flex items-center justify-between border-b border-zinc-200 px-3 py-2 dark:border-zinc-700">
+                  <span className="font-mono text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                    {s.stage}
+                  </span>
+                  {s.ended_at ? (
+                    <span className="text-xs text-zinc-500">
+                      {new Date(s.ended_at).toLocaleTimeString()}
+                    </span>
+                  ) : s.started_at ? (
+                    <span className="text-xs text-zinc-500">running</span>
+                  ) : null}
+                </div>
+                {s.error_message && (
+                  <p className="border-b border-zinc-200 px-3 py-2 text-sm text-red-600 dark:border-zinc-700 dark:text-red-400">
+                    {s.error_message}
+                  </p>
+                )}
+                {s.output && (
+                  <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words px-3 py-2 font-mono text-xs text-zinc-700 dark:text-zinc-300">
+                    {s.output}
+                  </pre>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {status === "completed" && scan && (
         <div className="mt-4 rounded border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/50">
           <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Result</p>

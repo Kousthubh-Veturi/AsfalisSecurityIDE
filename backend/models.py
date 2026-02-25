@@ -85,6 +85,7 @@ class ScanStage(Base):
     started_at = Column(DateTime, nullable=False)
     ended_at = Column(DateTime, nullable=True)
     error_message = Column(Text, nullable=True)
+    output = Column(Text, nullable=True)
 
     scan_run = relationship("ScanRun", back_populates="stages")
 
