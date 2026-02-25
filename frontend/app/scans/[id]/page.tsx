@@ -59,6 +59,7 @@ export default function ScanResultsPage() {
   const [stages, setStages] = useState<StageRow[]>([]);
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>("Normalized");
   const [error, setError] = useState<string | null>(null);
+  const [terminating, setTerminating] = useState(false);
 
   const fetchScan = useCallback(async () => {
     if (!API_BASE || !id) return;
@@ -102,6 +103,24 @@ export default function ScanResultsPage() {
       // ignore
     }
   }, [id]);
+
+  const terminateScan = useCallback(async () => {
+    if (!API_BASE || !id) return;
+    setTerminating(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/scans/${id}/terminate`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        fetchScan();
+      } else {
+        setError(data.error || `Terminate failed: ${res.status}`);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to terminate");
+    } finally {
+      setTerminating(false);
+    }
+  }, [id, fetchScan]);
 
   const fetchStages = useCallback(async () => {
     if (!API_BASE || !id) return;
@@ -186,13 +205,23 @@ export default function ScanResultsPage() {
           Repo: <span className="font-mono">{scan.full_name}</span>
         </p>
       )}
-      <div className="mt-4 flex items-center gap-3">
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         <StatusLabel status={status} />
         {isPending && scan?.current_stage && (
           <span className="text-sm text-zinc-500">({scan.current_stage})</span>
         )}
         {isPending && (
           <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-600 dark:border-zinc-600 dark:border-t-zinc-300" />
+        )}
+        {isPending && (
+          <button
+            type="button"
+            onClick={terminateScan}
+            disabled={terminating}
+            className="ml-auto rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 dark:bg-red-700 dark:hover:bg-red-800"
+          >
+            {terminating ? "Terminating…" : "Terminate scan"}
+          </button>
         )}
       </div>
       {scan?.created_at && (
@@ -385,6 +414,7 @@ function StatusLabel({ status }: { status: string }) {
     running: { label: "Running", className: "text-blue-600 dark:text-blue-400" },
     completed: { label: "Completed", className: "text-green-600 dark:text-green-400" },
     failed: { label: "Failed", className: "text-red-600 dark:text-red-400" },
+    cancelled: { label: "Cancelled", className: "text-amber-600 dark:text-amber-400" },
   };
   const { label, className } = labels[status] ?? { label: status, className: "text-zinc-500" };
   return <span className={`font-medium ${className}`}>{label}</span>;

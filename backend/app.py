@@ -534,6 +534,24 @@ def get_scan_stages(scan_run_id: str):
         return {"error": "database unavailable"}, 503
 
 
+@app.route("/api/scans/<scan_run_id>/terminate", methods=["POST"])
+def terminate_scan(scan_run_id: str):
+    """Mark a queued or running scan as cancelled. Worker will stop between stages."""
+    try:
+        with get_session() as session:
+            run = session.query(ScanRun).filter_by(id=scan_run_id).one_or_none()
+            if run is None:
+                return {"error": "scan not found"}, 404
+            if run.status not in ("queued", "running"):
+                return {"error": f"scan is already {run.status}, cannot terminate"}, 400
+            run.status = "cancelled"
+            run.ended_at = datetime.utcnow()
+            run.error_message = "Cancelled by user"
+        return {"ok": True, "status": "cancelled"}, 200
+    except RuntimeError:
+        return {"error": "database unavailable"}, 503
+
+
 @app.route("/api/scans/<scan_run_id>/artifacts")
 def list_scan_artifacts(scan_run_id: str):
     """List artifact names (SARIF files) for this scan."""

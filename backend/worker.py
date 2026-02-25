@@ -41,6 +41,13 @@ def _download_repo_archive(owner: str, name: str, ref: str, token: str) -> bytes
 
 MAX_STAGE_OUTPUT_LEN = 200_000
 
+def _is_cancelled(scan_id: str) -> bool:
+    """Return True if this scan was cancelled (terminate button). Worker should exit without overwriting."""
+    with get_session() as session:
+        run = session.query(ScanRun).filter_by(id=scan_id).one_or_none()
+        return run is not None and run.status != "running"
+
+
 def _record_stage(scan_id: str, stage: str, started_at: datetime, ended_at: datetime | None = None, error_message: str | None = None, output: str | None = None) -> None:
     with get_session() as session:
         run = session.query(ScanRun).filter_by(id=scan_id).one_or_none()
@@ -99,6 +106,9 @@ def _run_scan_job(scan_id: str) -> None:
         work_dir = os.path.join(tmpdir, subdirs[0]) if len(subdirs) == 1 else tmpdir
         _record_stage(scan_id, "fetch_repo", stage_start, datetime.utcnow(), output="Repo archive downloaded and extracted.")
 
+        if _is_cancelled(scan_id):
+            return
+
         osv_ok, osv_msg, osv_path = False, "", None
         semgrep_ok, semgrep_msg, semgrep_path = False, "", None
 
@@ -133,11 +143,17 @@ def _run_scan_job(scan_id: str) -> None:
         _record_stage(scan_id, "semantic_codeql", stage_start, datetime.utcnow(), None if codeql_ok else codeql_msg, output=codeql_msg or None)
         timeout_check()
 
+        if _is_cancelled(scan_id):
+            return
+
         project_key = f"asfalis-{scan_id}"[:64]
         stage_start = datetime.utcnow()
         _record_stage(scan_id, "sonarqube_publish", stage_start)
         sonar_ok, sonar_msg, _ = run_sonar(work_dir, project_key, timeout=300)
         _record_stage(scan_id, "sonarqube_publish", stage_start, datetime.utcnow(), None if sonar_ok else sonar_msg, output=sonar_msg or None)
+
+        if _is_cancelled(scan_id):
+            return
 
         stage_start = datetime.utcnow()
         _record_stage(scan_id, "normalize", stage_start)
