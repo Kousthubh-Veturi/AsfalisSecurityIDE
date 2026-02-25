@@ -1,5 +1,6 @@
 import os
 import time
+import uuid
 from datetime import datetime
 
 import jwt
@@ -10,7 +11,7 @@ from flask_cors import CORS
 
 from db import Base, engine, get_session
 from github_app import get_github_private_key
-from models import Installation, Repo
+from models import Installation, Repo, ScanRun
 from webhooks import verify_github_signature
 
 load_dotenv()
@@ -373,6 +374,103 @@ def sync_installation_repos(installation_id: int):
                     existing.archived = archived
                     existing.last_synced_at = now
         return {"synced": len(repos)}, 200
+    except RuntimeError:
+        return {"error": "database unavailable"}, 503
+
+
+@app.route("/api/repos/<int:repo_id>/scan", methods=["POST"])
+def start_scan(repo_id: int):
+    """Create a scan_run with status=queued. Worker will pick it up."""
+    installation_id = request.args.get("installation_id", type=int)
+    if installation_id is None:
+        return {"error": "installation_id required"}, 400
+    try:
+        with get_session() as session:
+            repo = (
+                session.query(Repo)
+                .filter_by(repo_id=repo_id, installation_id=installation_id)
+                .one_or_none()
+            )
+            if repo is None:
+                return {"error": "repo not found or not in this installation"}, 404
+            branch = repo.default_branch or "main"
+            scan_id = str(uuid.uuid4())
+            now = datetime.utcnow()
+            run = ScanRun(
+                id=scan_id,
+                repo_id=repo_id,
+                installation_id=installation_id,
+                trigger="manual",
+                status="queued",
+                created_at=now,
+                branch=branch,
+            )
+            session.add(run)
+        return {"scan_run_id": scan_id, "status": "queued"}, 201
+    except RuntimeError:
+        return {"error": "database unavailable"}, 503
+
+
+@app.route("/api/scans/<scan_run_id>")
+def get_scan(scan_run_id: str):
+    """Return scan run status and details for polling."""
+    try:
+        with get_session() as session:
+            run = session.query(ScanRun).filter_by(id=scan_run_id).one_or_none()
+            if run is None:
+                return {"error": "scan not found"}, 404
+            repo = session.query(Repo).filter_by(repo_id=run.repo_id).one_or_none()
+            return {
+                "id": run.id,
+                "repo_id": run.repo_id,
+                "full_name": repo.full_name if repo else None,
+                "status": run.status,
+                "trigger": run.trigger,
+                "created_at": run.created_at.isoformat() if run.created_at else None,
+                "started_at": run.started_at.isoformat() if run.started_at else None,
+                "ended_at": run.ended_at.isoformat() if run.ended_at else None,
+                "branch": run.branch,
+                "commit_sha": run.commit_sha,
+                "error_message": run.error_message,
+                "result_summary": run.result_summary,
+            }, 200
+    except RuntimeError:
+        return {"error": "database unavailable"}, 503
+
+
+@app.route("/api/repos/<int:repo_id>/scans")
+def list_repo_scans(repo_id: int):
+    """Return last N scan runs for this repo."""
+    installation_id = request.args.get("installation_id", type=int)
+    limit = request.args.get("limit", type=int, default=20)
+    limit = min(max(1, limit), 100)
+    try:
+        with get_session() as session:
+            repo = session.query(Repo).filter_by(repo_id=repo_id).one_or_none()
+            if repo is None:
+                return {"error": "repo not found"}, 404
+            if installation_id is not None and repo.installation_id != installation_id:
+                return {"error": "repo not in this installation"}, 404
+            runs = (
+                session.query(ScanRun)
+                .filter_by(repo_id=repo_id)
+                .order_by(ScanRun.created_at.desc())
+                .limit(limit)
+                .all()
+            )
+            return {
+                "repo_id": repo_id,
+                "scans": [
+                    {
+                        "id": r.id,
+                        "status": r.status,
+                        "trigger": r.trigger,
+                        "created_at": r.created_at.isoformat() if r.created_at else None,
+                        "ended_at": r.ended_at.isoformat() if r.ended_at else None,
+                    }
+                    for r in runs
+                ],
+            }, 200
     except RuntimeError:
         return {"error": "database unavailable"}, 503
 

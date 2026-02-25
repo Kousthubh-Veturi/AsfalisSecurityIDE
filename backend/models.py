@@ -8,6 +8,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Text,
 )
 from sqlalchemy.orm import relationship
 
@@ -48,3 +49,24 @@ class Repo(Base):
     last_synced_at = Column(DateTime, nullable=True)
 
     installation = relationship("Installation", back_populates="repos")
+    scan_runs = relationship("ScanRun", back_populates="repo", cascade="all, delete-orphan")
+
+
+class ScanRun(Base):
+    __tablename__ = "scan_runs"
+
+    id = Column(String(36), primary_key=True)
+    repo_id = Column(BigInteger, ForeignKey("repos.repo_id"), nullable=False)
+    installation_id = Column(BigInteger, nullable=False)
+    trigger = Column(String(32), nullable=False, default="manual")
+    status = Column(String(32), nullable=False, default="queued")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    started_at = Column(DateTime, nullable=True)
+    ended_at = Column(DateTime, nullable=True)
+    commit_sha = Column(String(64), nullable=True)
+    branch = Column(String(255), nullable=True)
+    error_message = Column(Text, nullable=True)
+    log_uri = Column(String(512), nullable=True)
+    result_summary = Column(Text, nullable=True)
+
+    repo = relationship("Repo", back_populates="scan_runs")

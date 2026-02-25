@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { API_BASE } from "../lib/api";
 
@@ -21,11 +21,13 @@ type ReposResponse = {
 };
 
 function ReposContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [installationId, setInstallationId] = useState<string | null>(null);
   const [repos, setRepos] = useState<Repo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [scanningRepoId, setScanningRepoId] = useState<number | null>(null);
 
   const loadRepos = useCallback(async (id: string) => {
     if (!API_BASE) {
@@ -60,6 +62,32 @@ function ReposContent() {
       setLoading(false);
     }
   }, []);
+
+  const startScan = useCallback(
+    async (repoId: number) => {
+      if (!API_BASE || !installationId) return;
+      setScanningRepoId(repoId);
+      setError(null);
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/repos/${repoId}/scan?installation_id=${installationId}`,
+          { method: "POST" }
+        );
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setError(data.error || `Scan failed: ${res.status}`);
+          return;
+        }
+        const scanRunId = data.scan_run_id;
+        if (scanRunId) router.push(`/scans/${scanRunId}`);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to start scan");
+      } finally {
+        setScanningRepoId(null);
+      }
+    },
+    [installationId, router]
+  );
 
   useEffect(() => {
     const fromUrl = searchParams.get("installation_id");
@@ -142,13 +170,24 @@ function ReposContent() {
       ) : repos.length === 0 && !error ? (
         <p className="mt-6 text-zinc-500">No repos in this installation yet. Add repos in GitHub App settings.</p>
       ) : (
-        <ul className="mt-6 list-inside list-disc space-y-1 text-zinc-700 dark:text-zinc-300">
+        <ul className="mt-6 space-y-2 text-zinc-700 dark:text-zinc-300">
           {repos.map((r) => (
-            <li key={r.repo_id}>
+            <li
+              key={r.repo_id}
+              className="flex items-center justify-between gap-4 rounded border border-zinc-200 py-2 pl-3 pr-2 dark:border-zinc-800"
+            >
               <span className="font-mono">{r.full_name}</span>
               {r.default_branch && (
-                <span className="ml-2 text-zinc-500">({r.default_branch})</span>
+                <span className="text-zinc-500">({r.default_branch})</span>
               )}
+              <button
+                type="button"
+                disabled={scanningRepoId === r.repo_id}
+                onClick={() => startScan(r.repo_id)}
+                className="rounded bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+              >
+                {scanningRepoId === r.repo_id ? "Starting…" : "Scan"}
+              </button>
             </li>
           ))}
         </ul>
