@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { API_BASE } from "../lib/api";
 
 const INSTALLATION_KEY = "asfalis_installation_id";
@@ -20,7 +20,7 @@ type ReposResponse = {
   repos: Repo[];
 };
 
-export default function ReposPage() {
+function ReposContent() {
   const searchParams = useSearchParams();
   const [installationId, setInstallationId] = useState<string | null>(null);
   const [repos, setRepos] = useState<Repo[]>([]);
@@ -146,5 +146,13 @@ export default function ReposPage() {
         </ul>
       )}
     </div>
+  );
+}
+
+export default function ReposPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen flex-col p-8 font-sans"><p className="text-zinc-500">Loading...</p></div>}>
+      <ReposContent />
+    </Suspense>
   );
 }

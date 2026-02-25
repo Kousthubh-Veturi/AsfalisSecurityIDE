@@ -1,11 +1,11 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 
 const INSTALLATION_KEY = "asfalis_installation_id";
 
-export default function GithubSetupPage() {
+function SetupRedirect() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -22,5 +22,13 @@ export default function GithubSetupPage() {
     <div className="flex min-h-screen items-center justify-center font-sans">
       <p className="text-zinc-600 dark:text-zinc-400">Redirecting...</p>
     </div>
+  );
+}
+
+export default function GithubSetupPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center font-sans"><p className="text-zinc-500">Loading...</p></div>}>
+      <SetupRedirect />
+    </Suspense>
   );
 }
