@@ -6,12 +6,12 @@ from datetime import datetime
 import jwt
 import requests
 from dotenv import load_dotenv
-from flask import Flask, request
+from flask import Flask, Response, request
 from flask_cors import CORS
 
 from db import Base, engine, get_session
 from github_app import get_github_private_key
-from models import Installation, Repo, ScanRun
+from models import Finding, Installation, Repo, ScanArtifact, ScanRun, ScanStage
 from webhooks import verify_github_signature
 
 load_dotenv()
@@ -425,6 +425,7 @@ def get_scan(scan_run_id: str):
                 "repo_id": run.repo_id,
                 "full_name": repo.full_name if repo else None,
                 "status": run.status,
+                "current_stage": run.current_stage,
                 "trigger": run.trigger,
                 "created_at": run.created_at.isoformat() if run.created_at else None,
                 "started_at": run.started_at.isoformat() if run.started_at else None,
@@ -434,6 +435,100 @@ def get_scan(scan_run_id: str):
                 "error_message": run.error_message,
                 "result_summary": run.result_summary,
             }, 200
+    except RuntimeError:
+        return {"error": "database unavailable"}, 503
+
+
+@app.route("/api/scans/<scan_run_id>/findings")
+def get_scan_findings(scan_run_id: str):
+    """Return normalized findings for this scan."""
+    try:
+        with get_session() as session:
+            run = session.query(ScanRun).filter_by(id=scan_run_id).one_or_none()
+            if run is None:
+                return {"error": "scan not found"}, 404
+            findings = session.query(Finding).filter_by(scan_run_id=scan_run_id).all()
+            sev_order = {"CRITICAL": 0, "HIGH": 1, "MED": 2, "LOW": 3, "INFO": 4}
+            findings = sorted(findings, key=lambda f: (sev_order.get(f.severity_normalized or "", 5), (f.path or "")))
+            return {
+                "scan_run_id": scan_run_id,
+                "findings": [
+                    {
+                        "id": f.id,
+                        "tool": f.tool,
+                        "rule_id": f.rule_id,
+                        "title": f.title,
+                        "severity_raw": f.severity_raw,
+                        "severity_normalized": f.severity_normalized,
+                        "cvss": f.cvss,
+                        "cwe": f.cwe,
+                        "path": f.path,
+                        "start_line": f.start_line,
+                        "end_line": f.end_line,
+                        "help_text": f.help_text,
+                    }
+                    for f in findings
+                ],
+            }, 200
+    except RuntimeError:
+        return {"error": "database unavailable"}, 503
+
+
+@app.route("/api/scans/<scan_run_id>/stages")
+def get_scan_stages(scan_run_id: str):
+    """Return stage progress for this scan."""
+    try:
+        with get_session() as session:
+            run = session.query(ScanRun).filter_by(id=scan_run_id).one_or_none()
+            if run is None:
+                return {"error": "scan not found"}, 404
+            stages = session.query(ScanStage).filter_by(scan_run_id=scan_run_id).order_by(ScanStage.started_at).all()
+            return {
+                "scan_run_id": scan_run_id,
+                "current_stage": run.current_stage,
+                "stages": [
+                    {
+                        "stage": s.stage,
+                        "started_at": s.started_at.isoformat() if s.started_at else None,
+                        "ended_at": s.ended_at.isoformat() if s.ended_at else None,
+                        "error_message": s.error_message,
+                    }
+                    for s in stages
+                ],
+            }, 200
+    except RuntimeError:
+        return {"error": "database unavailable"}, 503
+
+
+@app.route("/api/scans/<scan_run_id>/artifacts")
+def list_scan_artifacts(scan_run_id: str):
+    """List artifact names (SARIF files) for this scan."""
+    try:
+        with get_session() as session:
+            run = session.query(ScanRun).filter_by(id=scan_run_id).one_or_none()
+            if run is None:
+                return {"error": "scan not found"}, 404
+            artifacts = session.query(ScanArtifact).filter_by(scan_run_id=scan_run_id).all()
+            return {
+                "scan_run_id": scan_run_id,
+                "artifacts": [{"name": a.name, "content_type": a.content_type} for a in artifacts],
+            }, 200
+    except RuntimeError:
+        return {"error": "database unavailable"}, 503
+
+
+@app.route("/api/scans/<scan_run_id>/artifacts/<artifact_name>")
+def get_scan_artifact(scan_run_id: str, artifact_name: str):
+    """Download a SARIF artifact by name (e.g. osv.sarif, merged.sarif)."""
+    try:
+        with get_session() as session:
+            run = session.query(ScanRun).filter_by(id=scan_run_id).one_or_none()
+            if run is None:
+                return {"error": "scan not found"}, 404
+            art = session.query(ScanArtifact).filter_by(scan_run_id=scan_run_id, name=artifact_name).one_or_none()
+            if art is None:
+                return {"error": "artifact not found"}, 404
+            return Response(art.content, mimetype=art.content_type, headers={"Content-Disposition": f"attachment; filename={artifact_name}"})
     except RuntimeError:
         return {"error": "database unavailable"}, 503
 

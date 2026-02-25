@@ -10,3 +10,4 @@ frontend/env.local
 frontend/.next/
 .DS_Store
 backend/asfalis-security-scanner.2026-02-23.private-key.pem
+backend/HOUR3-SETUP.md

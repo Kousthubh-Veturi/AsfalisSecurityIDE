@@ -60,6 +60,7 @@ class ScanRun(Base):
     installation_id = Column(BigInteger, nullable=False)
     trigger = Column(String(32), nullable=False, default="manual")
     status = Column(String(32), nullable=False, default="queued")
+    current_stage = Column(String(64), nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     started_at = Column(DateTime, nullable=True)
     ended_at = Column(DateTime, nullable=True)
@@ -70,3 +71,54 @@ class ScanRun(Base):
     result_summary = Column(Text, nullable=True)
 
     repo = relationship("Repo", back_populates="scan_runs")
+    stages = relationship("ScanStage", back_populates="scan_run", cascade="all, delete-orphan")
+    findings = relationship("Finding", back_populates="scan_run", cascade="all, delete-orphan")
+    artifacts = relationship("ScanArtifact", back_populates="scan_run", cascade="all, delete-orphan")
+
+
+class ScanStage(Base):
+    __tablename__ = "scan_stages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    scan_run_id = Column(String(36), ForeignKey("scan_runs.id"), nullable=False)
+    stage = Column(String(64), nullable=False)
+    started_at = Column(DateTime, nullable=False)
+    ended_at = Column(DateTime, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+    scan_run = relationship("ScanRun", back_populates="stages")
+
+
+class Finding(Base):
+    __tablename__ = "findings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    scan_run_id = Column(String(36), ForeignKey("scan_runs.id"), nullable=False)
+    tool = Column(String(32), nullable=False)
+    rule_id = Column(String(255), nullable=True)
+    title = Column(String(512), nullable=True)
+    severity_raw = Column(String(64), nullable=True)
+    severity_normalized = Column(String(16), nullable=False)
+    cvss = Column(String(32), nullable=True)
+    cwe = Column(String(64), nullable=True)
+    confidence = Column(String(32), nullable=True)
+    path = Column(String(1024), nullable=True)
+    start_line = Column(Integer, nullable=True)
+    end_line = Column(Integer, nullable=True)
+    fingerprint = Column(String(255), nullable=True)
+    help_text = Column(Text, nullable=True)
+    codeql_trace = Column(Text, nullable=True)
+
+    scan_run = relationship("ScanRun", back_populates="findings")
+
+
+class ScanArtifact(Base):
+    __tablename__ = "scan_artifacts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    scan_run_id = Column(String(36), ForeignKey("scan_runs.id"), nullable=False)
+    name = Column(String(128), nullable=False)
+    content_type = Column(String(64), nullable=False, default="application/sarif+json")
+    content = Column(Text, nullable=False)
+
+    scan_run = relationship("ScanRun", back_populates="artifacts")
