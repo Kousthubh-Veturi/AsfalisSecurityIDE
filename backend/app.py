@@ -438,6 +438,46 @@ def get_scan(scan_run_id: str):
         return {"error": "database unavailable"}, 503
 
 
+@app.route("/api/installations/<int:installation_id>/scans")
+def list_installation_scans(installation_id: int):
+    """Return last N scan runs for this installation (all repos)."""
+    limit = request.args.get("limit", type=int, default=50)
+    limit = min(max(1, limit), 100)
+    try:
+        with get_session() as session:
+            runs = (
+                session.query(ScanRun)
+                .filter_by(installation_id=installation_id)
+                .order_by(ScanRun.created_at.desc())
+                .limit(limit)
+                .all()
+            )
+            repo_ids = {r.repo_id for r in runs}
+            repos = (
+                session.query(Repo).filter(Repo.repo_id.in_(repo_ids)).all()
+                if repo_ids
+                else []
+            )
+            repo_by_id = {r.repo_id: r.full_name for r in repos}
+            return {
+                "installation_id": installation_id,
+                "scans": [
+                    {
+                        "id": r.id,
+                        "repo_id": r.repo_id,
+                        "full_name": repo_by_id.get(r.repo_id),
+                        "status": r.status,
+                        "trigger": r.trigger,
+                        "created_at": r.created_at.isoformat() if r.created_at else None,
+                        "ended_at": r.ended_at.isoformat() if r.ended_at else None,
+                    }
+                    for r in runs
+                ],
+            }, 200
+    except RuntimeError:
+        return {"error": "database unavailable"}, 503
+
+
 @app.route("/api/repos/<int:repo_id>/scans")
 def list_repo_scans(repo_id: int):
     """Return last N scan runs for this repo."""

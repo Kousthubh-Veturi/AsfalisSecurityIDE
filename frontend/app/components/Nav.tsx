@@ -48,7 +48,7 @@ export function Nav() {
             Repos
           </Link>
           <Link
-            href="/scans/0"
+            href="/scans"
             className={`text-sm font-medium ${
               pathname?.startsWith("/scans")
                 ? "text-zinc-900 dark:text-zinc-50"
