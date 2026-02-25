@@ -25,8 +25,10 @@ CORS(app, origins=origins)
 if engine is not None:
     try:
         Base.metadata.create_all(bind=engine)
-    except Exception:
-        pass  # DB unreachable at boot (e.g. wrong DATABASE_URL); /health still works
+    except Exception as e:
+        import traceback
+        print(f"create_all failed: {e}", flush=True)
+        traceback.print_exc()
 
 
 @app.route("/")
@@ -409,6 +411,9 @@ def start_scan(repo_id: int):
         return {"scan_run_id": scan_id, "status": "queued"}, 201
     except RuntimeError:
         return {"error": "database unavailable"}, 503
+    except Exception as e:
+        print(f"start_scan error: {e}", flush=True)
+        return {"error": "scan failed", "detail": str(e)}, 503
 
 
 @app.route("/api/scans/<scan_run_id>")
@@ -571,6 +576,9 @@ def list_installation_scans(installation_id: int):
             }, 200
     except RuntimeError:
         return {"error": "database unavailable"}, 503
+    except Exception as e:
+        print(f"list_installation_scans error: {e}", flush=True)
+        return {"error": "failed to list scans", "detail": str(e)}, 503
 
 
 @app.route("/api/repos/<int:repo_id>/scans")
