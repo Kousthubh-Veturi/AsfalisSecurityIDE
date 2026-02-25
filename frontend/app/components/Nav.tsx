@@ -7,9 +7,9 @@ import { GITHUB_INSTALL_URL } from "../lib/api";
 
 const INSTALLATION_KEY = "asfalis_installation_id";
 
-function hasStoredInstallation(): boolean {
+function hasSession(): boolean {
   if (typeof window === "undefined") return false;
-  return !!(window.sessionStorage.getItem(INSTALLATION_KEY) || window.localStorage.getItem(INSTALLATION_KEY));
+  return !!window.sessionStorage.getItem(INSTALLATION_KEY);
 }
 
 export function Nav() {
@@ -17,15 +17,23 @@ export function Nav() {
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    setConnected(hasStoredInstallation());
+    setConnected(hasSession());
   }, [pathname]);
 
   const logOut = useCallback(() => {
     if (typeof window === "undefined") return;
     window.sessionStorage.removeItem(INSTALLATION_KEY);
-    window.localStorage.removeItem(INSTALLATION_KEY);
     setConnected(false);
     window.location.href = "/";
+  }, []);
+
+  const logIn = useCallback(() => {
+    if (typeof window === "undefined") return;
+    if (window.localStorage.getItem(INSTALLATION_KEY)) {
+      window.location.href = "/repos";
+    } else {
+      window.location.href = GITHUB_INSTALL_URL;
+    }
   }, []);
 
   return (
@@ -73,12 +81,13 @@ export function Nav() {
               Log out
             </button>
           ) : (
-            <a
-              href={GITHUB_INSTALL_URL}
+            <button
+              type="button"
+              onClick={logIn}
               className="text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
             >
               Log in with GitHub
-            </a>
+            </button>
           )}
         </div>
       </div>

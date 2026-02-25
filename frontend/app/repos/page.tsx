@@ -97,10 +97,8 @@ function ReposContent() {
     const id = fromUrl || fromSession || fromLocal;
     if (id) {
       setInstallationId(id);
-      if (fromUrl || !fromLocal) {
-        window.sessionStorage.setItem(INSTALLATION_KEY, id);
-        window.localStorage.setItem(INSTALLATION_KEY, id);
-      }
+      window.sessionStorage.setItem(INSTALLATION_KEY, id);
+      window.localStorage.setItem(INSTALLATION_KEY, id);
       loadRepos(id);
     } else {
       setLoading(false);
