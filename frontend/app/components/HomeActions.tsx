@@ -14,7 +14,7 @@ export function HomeActions() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    setConnected(!!window.sessionStorage.getItem(INSTALLATION_KEY));
+    setConnected(!!(window.sessionStorage.getItem(INSTALLATION_KEY) || window.localStorage.getItem(INSTALLATION_KEY)));
   }, []);
 
   return (

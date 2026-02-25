@@ -55,7 +55,9 @@ function ScansContent() {
 
   useEffect(() => {
     const id =
-      typeof window !== "undefined" ? window.sessionStorage.getItem(INSTALLATION_KEY) : null;
+      typeof window !== "undefined"
+        ? window.sessionStorage.getItem(INSTALLATION_KEY) || window.localStorage.getItem(INSTALLATION_KEY)
+        : null;
     if (id) {
       setInstallationId(id);
       loadScans(id);

@@ -7,18 +7,23 @@ import { GITHUB_INSTALL_URL } from "../lib/api";
 
 const INSTALLATION_KEY = "asfalis_installation_id";
 
+function hasStoredInstallation(): boolean {
+  if (typeof window === "undefined") return false;
+  return !!(window.sessionStorage.getItem(INSTALLATION_KEY) || window.localStorage.getItem(INSTALLATION_KEY));
+}
+
 export function Nav() {
   const pathname = usePathname();
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    setConnected(!!window.sessionStorage.getItem(INSTALLATION_KEY));
+    setConnected(hasStoredInstallation());
   }, [pathname]);
 
   const logOut = useCallback(() => {
     if (typeof window === "undefined") return;
     window.sessionStorage.removeItem(INSTALLATION_KEY);
+    window.localStorage.removeItem(INSTALLATION_KEY);
     setConnected(false);
     window.location.href = "/";
   }, []);

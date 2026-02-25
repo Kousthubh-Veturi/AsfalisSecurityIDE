@@ -16,10 +16,15 @@ function SetupRedirect() {
     const fromStorage = window.sessionStorage.getItem(INSTALLATION_KEY);
     if (fromUrl) {
       window.sessionStorage.setItem(INSTALLATION_KEY, fromUrl);
+      window.localStorage.setItem(INSTALLATION_KEY, fromUrl);
       window.location.href = `/repos?installation_id=${fromUrl}`;
       return;
     }
-    if (fromStorage) {
+    const fromLocal = window.localStorage.getItem(INSTALLATION_KEY);
+    if (fromStorage || fromLocal) {
+      if (!fromStorage && fromLocal) {
+        window.sessionStorage.setItem(INSTALLATION_KEY, fromLocal);
+      }
       window.location.href = "/repos";
       return;
     }

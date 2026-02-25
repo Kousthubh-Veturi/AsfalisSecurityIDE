@@ -90,14 +90,16 @@ function ReposContent() {
   );
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
     const fromUrl = searchParams.get("installation_id");
-    const fromStorage =
-      typeof window !== "undefined" ? window.sessionStorage.getItem(INSTALLATION_KEY) : null;
-    const id = fromUrl || fromStorage;
+    const fromSession = window.sessionStorage.getItem(INSTALLATION_KEY);
+    const fromLocal = window.localStorage.getItem(INSTALLATION_KEY);
+    const id = fromUrl || fromSession || fromLocal;
     if (id) {
       setInstallationId(id);
-      if (fromUrl && typeof window !== "undefined") {
+      if (fromUrl || !fromLocal) {
         window.sessionStorage.setItem(INSTALLATION_KEY, id);
+        window.localStorage.setItem(INSTALLATION_KEY, id);
       }
       loadRepos(id);
     } else {
