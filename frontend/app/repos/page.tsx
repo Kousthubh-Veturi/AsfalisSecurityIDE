@@ -36,6 +36,14 @@ function ReposContent() {
     setLoading(true);
     setError(null);
     try {
+      const syncRes = await fetch(`${API_BASE}/api/installations/${id}/sync`, { method: "POST" });
+      if (!syncRes.ok) {
+        const syncData = await syncRes.json().catch(() => ({}));
+        setError(syncData.error || `Sync failed: ${syncRes.status}`);
+        setRepos([]);
+        setLoading(false);
+        return;
+      }
       const res = await fetch(`${API_BASE}/api/repos?installation_id=${id}`);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
