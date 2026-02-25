@@ -29,6 +29,21 @@ if engine is not None:
         import traceback
         print(f"create_all failed: {e}", flush=True)
         traceback.print_exc()
+    else:
+        # Add columns to existing tables if they were created before Hour 3
+        try:
+            from sqlalchemy import text
+            with engine.connect() as conn:
+                r = conn.execute(text(
+                    "SELECT 1 FROM information_schema.columns "
+                    "WHERE table_schema = 'public' AND table_name = 'scan_runs' AND column_name = 'current_stage'"
+                ))
+                if r.scalar() is None:
+                    conn.execute(text("ALTER TABLE scan_runs ADD COLUMN current_stage VARCHAR(64)"))
+                    conn.commit()
+                    print("Added scan_runs.current_stage column", flush=True)
+        except Exception as e:
+            print(f"Migration (current_stage) skipped or failed: {e}", flush=True)
 
 
 @app.route("/")
