@@ -36,7 +36,7 @@ RUN mkdir -p /opt && cd /opt \
     && if [ -z "$CODEQL_EXE" ]; then echo "CodeQL executable not found under /opt/codeql-home" && exit 1; fi \
     && ln -sf "$CODEQL_EXE" /usr/local/bin/codeql \
     && codeql --version
-ENV CODEQL_HOME=/opt/codeql-home
+# Do not set CODEQL_HOME here; the CLI finds its bundle from the executable path. Setting it can cause "Not a directory" errors.
 
 # Optional: sonar-scanner (uncomment if you use SonarQube)
 # RUN curl -sSL "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip" -o /tmp/sonar.zip \

@@ -40,30 +40,36 @@ def run_osv(work_dir: str, timeout: int = 120) -> tuple[bool, str, Optional[str]
     )
     if ok and os.path.isfile(out_path):
         return True, out or "ok", out_path
+    out_lower = (out or "").lower()
+    no_deps = any(
+        phrase in out_lower
+        for phrase in ("no lockfile", "no package", "no supported", "no dependency", "no manifest", "no files to scan")
+    )
+    if no_deps:
+        return True, "No supported dependency files in this repo.", None
     return False, out or "no output file", None
 
 
 def run_semgrep(work_dir: str, timeout: int = 300) -> tuple[bool, str, Optional[str]]:
-    """Run Semgrep with verbose output; output semgrep.sarif in work_dir. Returns (ok, message, path)."""
+    """Run Semgrep; output semgrep.sarif in work_dir. Uses p/default (SAST) to avoid supply-chain metadata parse errors."""
     out_path = os.path.join(work_dir, "semgrep.sarif")
     ok, out = _run(
-        ["semgrep", "scan", "--verbose", "--sarif", "--sarif-output", out_path, "--config", "auto", "."],
+        ["semgrep", "scan", "--sarif", "--sarif-output", out_path, "--config", "p/default", "."],
         cwd=work_dir,
         timeout=timeout,
     )
     if ok and os.path.isfile(out_path):
         return True, out or "ok", out_path
-    # Semgrep can exit non-zero due to e.g. "failed to parse metadata" for some deps while still writing SARIF
     if os.path.isfile(out_path) and os.path.getsize(out_path) > 0:
-        summary = "Completed with warnings (dependency metadata parse errors are non-fatal)."
-        return True, (summary + "\n\n" + out) if out else summary, out_path
+        return True, (out or "ok")[:8000], out_path
     return False, out or "no output file", None
 
 
 def run_codeql(work_dir: str, timeout: int = 900) -> tuple[bool, str, Optional[str]]:
     """
     Run CodeQL: create DB (Python for MVP), then analyze. Output codeql.sarif in work_dir.
-    Expects codeql on PATH or CODEQL_HOME set to bundle root (codeql executable at CODEQL_HOME/codeql/codeql).
+    Expects codeql on PATH or CODEQL_HOME set. CODEQL_HOME is not passed to the CLI subprocess
+    so the binary discovers its bundle from the executable path (avoids "Not a directory" errors).
     """
     codeql_cmd = "codeql"
     if os.environ.get("CODEQL_HOME"):
@@ -78,6 +84,8 @@ def run_codeql(work_dir: str, timeout: int = 900) -> tuple[bool, str, Optional[s
                 break
         else:
             codeql_cmd = os.path.join(base, "codeql", "codeql")
+    # Do not pass CODEQL_HOME to the subprocess; CLI finds bundle from executable path
+    codeql_env = {k: v for k, v in os.environ.items() if k != "CODEQL_HOME"}
     db_path = os.path.join(work_dir, "codeql_db")
     out_path = os.path.join(work_dir, "codeql.sarif")
     if os.path.isdir(db_path):
@@ -90,6 +98,7 @@ def run_codeql(work_dir: str, timeout: int = 900) -> tuple[bool, str, Optional[s
         [codeql_cmd, "database", "create", db_path, "--language=python", "--source-root", work_dir],
         cwd=work_dir,
         timeout=timeout,
+        env=codeql_env,
     )
     if not ok_create:
         msg = out_create or "codeql database create failed"
@@ -104,6 +113,7 @@ def run_codeql(work_dir: str, timeout: int = 900) -> tuple[bool, str, Optional[s
         ],
         cwd=work_dir,
         timeout=timeout,
+        env=codeql_env,
     )
     if ok_analyze and os.path.isfile(out_path):
         return True, out_analyze or "ok", out_path
