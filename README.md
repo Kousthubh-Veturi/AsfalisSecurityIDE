@@ -146,6 +146,52 @@ For worker scanning, the host must have OSV-Scanner, Semgrep, and CodeQL on `PAT
 
 ---
 
+## API reference
+
+All API routes are relative to the backend base URL. JSON request/response unless noted. Errors return a JSON object with an `error` (and optional `detail`) field and an appropriate HTTP status.
+
+### General
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/` | Health check; returns plain text `Hello, World!`. |
+| `GET` | `/health` | Liveness; returns `{"status": "ok"}`. |
+
+### GitHub integration
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/webhooks/github` | GitHub App webhook endpoint. Validates `X-Hub-Signature-256`; handles `ping`, `installation` (created/deleted/updated), and repository events to keep installations and repos in sync. |
+| `GET` | `/debug/installations/<installation_id>` | Debug only: uses GitHub App JWT to get an installation access token and list repos for that installation. Returns installation_id, account_login, repo_count, and first repo info. |
+| `POST` | `/api/installations/<installation_id>/sync` | Sync repos from GitHub for this installation: fetches installation repos via GitHub API and upserts into `repos` (create/update by repo_id). Returns `{"synced": N}`. |
+
+### Repositories
+
+| Method | Path | Query / Body | Description |
+|--------|------|--------------|-------------|
+| `GET` | `/api/repos` | `installation_id` (required) | List repositories for the given installation (non-archived). Returns `installation_id` and `repos` array (repo_id, full_name, default_branch, etc.). |
+| `POST` | `/api/repos/<repo_id>/scan` | `installation_id` (required) | Create a new scan run for the repo. Repo must belong to the given installation. Returns `{"scan_run_id": "<uuid>", "status": "queued"}` (201). Worker picks up the job from the queue. |
+| `GET` | `/api/repos/<repo_id>/scans` | `installation_id` (optional), `limit` (default 20, max 100) | List recent scan runs for this repo. Returns `repo_id` and `scans` array (id, status, trigger, created_at, ended_at). |
+
+### Scan runs
+
+| Method | Path | Query / Body | Description |
+|--------|------|--------------|-------------|
+| `GET` | `/api/scans/<scan_run_id>` | — | Get scan run details for polling: id, repo_id, full_name, status, current_stage, trigger, created_at, started_at, ended_at, branch, commit_sha, error_message, result_summary. |
+| `GET` | `/api/scans/<scan_run_id>/findings` | — | Get normalized findings for the scan. Returns `findings` array (id, tool, rule_id, title, severity_raw, severity_normalized, cvss, cwe, path, start_line, end_line, help_text) ordered by severity and path. |
+| `GET` | `/api/scans/<scan_run_id>/stages` | — | Get stage progress: `stages` array with stage name, started_at, ended_at, error_message, output. Used by the UI for the stage log. |
+| `POST` | `/api/scans/<scan_run_id>/terminate` | — | Mark a queued or running scan as cancelled. Worker checks between stages and exits without overwriting. Returns `{"ok": true, "status": "cancelled"}`. 400 if scan is already completed/failed/cancelled. |
+| `GET` | `/api/scans/<scan_run_id>/artifacts` | — | List SARIF artifact names for this scan. Returns `artifacts` array of `{name, content_type}` (e.g. osv.sarif, semgrep.sarif, codeql.sarif, merged.sarif). |
+| `GET` | `/api/scans/<scan_run_id>/artifacts/<artifact_name>` | — | Download a single artifact by name. Returns the SARIF body with `Content-Disposition: attachment`. |
+
+### Installation-scoped listing
+
+| Method | Path | Query / Body | Description |
+|--------|------|--------------|-------------|
+| `GET` | `/api/installations/<installation_id>/scans` | `limit` (default 50, max 100) | List recent scan runs across all repos in this installation. Returns `scans` array with id, repo_id, full_name, status, trigger, created_at, ended_at. |
+
+---
+
 ## License and references
 
 - **SARIF**: [OASIS SARIF](https://www.oasis-open.org/standards#sarif) — common format for static analysis results.
