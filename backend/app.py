@@ -324,15 +324,24 @@ def _installation_repos_from_github(installation_id: int):
     if not access_token:
         raise RuntimeError("No token in GitHub response")
     inst_headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/vnd.github+json"}
-    repos_resp = requests.get(
-        "https://api.github.com/installation/repositories",
-        headers=inst_headers,
-        timeout=10,
-    )
-    if repos_resp.status_code >= 300:
-        raise RuntimeError(f"GitHub repos failed: {repos_resp.status_code}")
-    data = repos_resp.json()
-    repos = data.get("repositories") or []
+    repos = []
+    page = 1
+    per_page = 100
+    while True:
+        repos_resp = requests.get(
+            "https://api.github.com/installation/repositories",
+            headers=inst_headers,
+            params={"per_page": per_page, "page": page},
+            timeout=30,
+        )
+        if repos_resp.status_code >= 300:
+            raise RuntimeError(f"GitHub repos failed: {repos_resp.status_code}")
+        data = repos_resp.json()
+        chunk = data.get("repositories") or []
+        repos.extend(chunk)
+        if len(chunk) < per_page:
+            break
+        page += 1
     account_login = None
     inst_resp = requests.get(
         f"https://api.github.com/app/installations/{installation_id}",
