@@ -24,14 +24,17 @@ RUN curl -sSL "https://github.com/google/osv-scanner/releases/download/v${OSV_VE
 # Semgrep: install via pip (same Python)
 RUN pip install --no-cache-dir semgrep
 
-# CodeQL: download bundle (large; ~756MB). Bundle layout is <root>/codeql/bin/codeql. See https://github.com/github/codeql-action/releases
+# CodeQL: download bundle (large; ~756MB). See https://github.com/github/codeql-action/releases
 ARG CODEQL_BUNDLE_TAG=codeql-bundle-v2.24.2
 RUN mkdir -p /opt && cd /opt \
     && curl -sSL "https://github.com/github/codeql-action/releases/download/${CODEQL_BUNDLE_TAG}/codeql-bundle-linux64.tar.gz" \
     | tar -xz \
-    && (test -d codeql-bundle-linux64 && mv codeql-bundle-linux64 codeql-home) || (test -d codeql && mv codeql codeql-home) \
-    && test -d /opt/codeql-home \
-    && if test -f /opt/codeql-home/codeql/bin/codeql; then ln -sf /opt/codeql-home/codeql/bin/codeql /usr/local/bin/codeql; elif test -f /opt/codeql-home/codeql/codeql; then ln -sf /opt/codeql-home/codeql/codeql /usr/local/bin/codeql; else echo "CodeQL executable not found" && exit 1; fi \
+    && CODEQL_ROOT="$(find /opt -maxdepth 1 -type d -name 'codeql*' | head -n 1)" \
+    && if [ -z "$CODEQL_ROOT" ]; then echo "CodeQL root directory not found under /opt" && exit 1; fi \
+    && mv "$CODEQL_ROOT" /opt/codeql-home \
+    && CODEQL_EXE="$(find /opt/codeql-home -maxdepth 3 -type f -name 'codeql' -perm -u+x | head -n 1)" \
+    && if [ -z "$CODEQL_EXE" ]; then echo "CodeQL executable not found under /opt/codeql-home" && exit 1; fi \
+    && ln -sf "$CODEQL_EXE" /usr/local/bin/codeql \
     && codeql --version
 ENV CODEQL_HOME=/opt/codeql-home
 
