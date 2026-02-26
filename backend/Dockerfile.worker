@@ -24,13 +24,15 @@ RUN curl -sSL "https://github.com/google/osv-scanner/releases/download/v${OSV_VE
 # Semgrep: install via pip (same Python)
 RUN pip install --no-cache-dir semgrep
 
-# CodeQL: download bundle (large; ~756MB). See https://github.com/github/codeql-action/releases
+# CodeQL: download bundle (large; ~756MB). Bundle layout is <root>/codeql/bin/codeql. See https://github.com/github/codeql-action/releases
 ARG CODEQL_BUNDLE_TAG=codeql-bundle-v2.24.2
 RUN mkdir -p /opt && cd /opt \
     && curl -sSL "https://github.com/github/codeql-action/releases/download/${CODEQL_BUNDLE_TAG}/codeql-bundle-linux64.tar.gz" \
     | tar -xz \
-    && (mv codeql-bundle-linux64 codeql-home 2>/dev/null || mv codeql codeql-home 2>/dev/null || true) \
-    && ln -sf /opt/codeql-home/codeql/codeql /usr/local/bin/codeql
+    && (test -d codeql-bundle-linux64 && mv codeql-bundle-linux64 codeql-home) || (test -d codeql && mv codeql codeql-home) \
+    && test -d /opt/codeql-home \
+    && if test -f /opt/codeql-home/codeql/bin/codeql; then ln -sf /opt/codeql-home/codeql/bin/codeql /usr/local/bin/codeql; elif test -f /opt/codeql-home/codeql/codeql; then ln -sf /opt/codeql-home/codeql/codeql /usr/local/bin/codeql; else echo "CodeQL executable not found" && exit 1; fi \
+    && codeql --version
 ENV CODEQL_HOME=/opt/codeql-home
 
 # Optional: sonar-scanner (uncomment if you use SonarQube)

@@ -53,6 +53,10 @@ def run_semgrep(work_dir: str, timeout: int = 300) -> tuple[bool, str, Optional[
     )
     if ok and os.path.isfile(out_path):
         return True, out or "ok", out_path
+    # Semgrep can exit non-zero due to e.g. "failed to parse metadata" for some deps while still writing SARIF
+    if os.path.isfile(out_path) and os.path.getsize(out_path) > 0:
+        summary = "Completed with warnings (dependency metadata parse errors are non-fatal)."
+        return True, (summary + "\n\n" + out) if out else summary, out_path
     return False, out or "no output file", None
 
 
@@ -64,9 +68,16 @@ def run_codeql(work_dir: str, timeout: int = 900) -> tuple[bool, str, Optional[s
     codeql_cmd = "codeql"
     if os.environ.get("CODEQL_HOME"):
         base = os.environ["CODEQL_HOME"].rstrip("/")
-        codeql_cmd = os.path.join(base, "codeql", "codeql")
-        if not os.path.isfile(codeql_cmd):
-            codeql_cmd = os.path.join(base, "codeql.exe")
+        for candidate in (
+            os.path.join(base, "codeql", "bin", "codeql"),
+            os.path.join(base, "codeql", "codeql"),
+            os.path.join(base, "codeql.exe"),
+        ):
+            if os.path.isfile(candidate):
+                codeql_cmd = candidate
+                break
+        else:
+            codeql_cmd = os.path.join(base, "codeql", "codeql")
     db_path = os.path.join(work_dir, "codeql_db")
     out_path = os.path.join(work_dir, "codeql.sarif")
     if os.path.isdir(db_path):
@@ -81,7 +92,10 @@ def run_codeql(work_dir: str, timeout: int = 900) -> tuple[bool, str, Optional[s
         timeout=timeout,
     )
     if not ok_create:
-        return False, out_create or "codeql database create failed", None
+        msg = out_create or "codeql database create failed"
+        if msg.strip() == "command not found":
+            msg = "CodeQL CLI not found (set CODEQL_HOME or add codeql to PATH)."
+        return False, msg, None
     ok_analyze, out_analyze = _run(
         [
             codeql_cmd, "database", "analyze", db_path,
@@ -105,7 +119,7 @@ def run_sonar(work_dir: str, project_key: str, timeout: int = 300) -> tuple[bool
     url = os.environ.get("SONAR_HOST_URL")
     token = os.environ.get("SONAR_TOKEN")
     if not url or not token:
-        return False, "SONAR_HOST_URL or SONAR_TOKEN not set", None
+        return True, "Skipped: SONAR_HOST_URL or SONAR_TOKEN not set.", None
     props = os.path.join(work_dir, "sonar-project.properties")
     with open(props, "w") as f:
         f.write(f"sonar.projectKey={project_key}\n")
