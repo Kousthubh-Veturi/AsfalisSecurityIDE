@@ -1,5 +1,8 @@
 # Asfalis Security
 
+[Live Demo](https://asfalis-security-ide.vercel.app/)
+
+
 A unified security scanning platform for source-code repositories. Users install a GitHub App, connect repositories, and run on-demand scans. The system runs **SAST**, **SCA**, and semantic analysis in a single pipeline, normalizes tool outputs to a common schema, stores findings and raw evidence (SARIF), and exposes results via API and UI.
 
 The platform is built around a clear split: a **control plane** (API + orchestration), a **data plane** (worker fleet that runs scanners in isolation), and an **evidence plane** (normalized findings, raw SARIF artifacts, and reporting). Scanning is integrated with the development workflow through the GitHub App and is designed so that CI/CD (e.g. GitHub Actions) can trigger scans via the same API.
